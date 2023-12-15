@@ -47,3 +47,9 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Folders
+temp/
+figures/
+data/
+*.Rproj
