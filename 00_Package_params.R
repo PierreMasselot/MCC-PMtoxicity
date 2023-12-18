@@ -26,6 +26,7 @@ library(zCompositions)
 #----- Output
 library(knitr)
 library(ggplot2)
+library(flextable)
 
 #--------------------------
 # Parameters
@@ -57,9 +58,6 @@ yearstart <- 1999
 maxlagp <- 1
 arglagp <- list(fun = "strata") # Equivalent to MA
 argvarp <- list(fun = "lin")
-
-# ERF centering
-cen <- 0
 
 # Number of df per year
 timedf <- 7

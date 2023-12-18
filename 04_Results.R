@@ -18,14 +18,15 @@ table(subset(cities, conv & !is.na(ox), countryname, drop = T)) |>
   flextable() |>
   delete_part() |>
   autofit() |>
-  save_as_docx(path = "figures/countryDesc_sameDat.docx")
+  save_as_docx(path = "figures/countryDesc.docx")
 
 #-----------------------
 # Table with RER
 #-----------------------
 
 # Extract RER for each fitted model
-nicetable <- foreach (fit = list(capifit, oxfit), lab = c("CAPI", "Ox"), 
+nicetable <- foreach (fit = list(capifit, oxfit, adjfit), 
+  lab = c("CAPI", "Ox", "CAPI (adjusted)"), 
   .combine = rbind) %do% 
 {
   
@@ -50,34 +51,5 @@ nicetable <- foreach (fit = list(capifit, oxfit), lab = c("CAPI", "Ox"),
 flextable(nicetable[,c("variable", "RER", "P-value")]) |>
   set_header_labels(variable = "") |>
   autofit() |>
-  save_as_docx(path = "figures/TabRER_sameDat.docx")
+  save_as_docx(path = "figures/TabRER.docx")
 
-#----------------------------
-# Plot how RR affects CAPI
-#----------------------------
-
-#----- Predictions for various values
-
-# Prediction data.frame
-capi_pred <- cities[, c(attr(terms(capi), "term.labels"), "coef")] |>
-  mutate(PM2.5_Linear = mean(PM2.5_Linear), gdp = mean(gdp))
-
-# Prediction
-capi_RR <- predict(capi, capi_pred, se = T) |>
-  cbind(capi_pred)
-
-# CIs and RR
-capi_RR <- mutate(capi_RR, RR = exp(fit), low = exp(fit - 1.96 * se), 
-  high = exp(fit + 1.96 * se))
-
-#----- Plot
-
-ggplot(capi_RR, aes(x = PM2.5_toxicity)) + theme_bw() + 
-  geom_point(aes(y = exp(coef))) + 
-  geom_line(aes(y = RR)) + 
-  geom_line(aes(y = low), linetype = 2) + 
-  geom_line(aes(y = high), linetype = 2) + 
-  geom_hline(yintercept = 1) + 
-  labs(y = "RR")
-
-ggsave("figures/RR_v_toxi.pdf")
