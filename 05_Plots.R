@@ -46,10 +46,27 @@ ggplot(cities, aes(x = coef, y = coefadj)) +
   geom_point() + 
   geom_smooth(method = "lm", col = 4) + 
   geom_text(aes(label = cityname), nudge_y = .01,
-    data = subset(cities, abs(coef - coefadj) > .1)) + 
+    data = subset(cities, abs(coef - coefadj) > .05)) + 
   geom_abline(slope = 1, intercept = 0, col = 1) + 
-  labs(x = "Unadjusted log(RR)", y = "Adjusted log(RR)") +
+  labs(x = "Unadjusted log(RR)", y = "Adjusted log(RR)", 
+    title = "First stage RR", subtitle = "Adjustment by NO2 and O3") +
   theme_bw()
 
 # Save
-ggsave("figures/RRadjustment_scatter.pdf")
+ggsave("figures/RRadjustment_scatter_NO2O3.pdf")
+
+# Plot
+ggplot(cities, aes(x = coef, y = coefox)) + 
+  geom_hline(yintercept = 0, col = "grey") + 
+  geom_vline(xintercept = 0, col = "grey") + 
+  geom_point() + 
+  geom_smooth(method = "lm", col = 4) + 
+  geom_text(aes(label = cityname), nudge_y = .01,
+    data = subset(cities, abs(coef - coefadj) > .05)) + 
+  geom_abline(slope = 1, intercept = 0, col = 1) + 
+  labs(x = "Unadjusted log(RR)", y = "Adjusted log(RR)", 
+    title = "First stage RR", subtitle = "Adjustment by Ox") +
+  theme_bw()
+
+# Save
+ggsave("figures/RRadjustment_scatter_Ox.pdf")

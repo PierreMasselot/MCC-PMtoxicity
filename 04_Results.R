@@ -25,8 +25,9 @@ table(subset(cities, conv & !is.na(ox), countryname, drop = T)) |>
 #-----------------------
 
 # Extract RER for each fitted model
-nicetable <- foreach (fit = list(capifit, oxfit, adjfit), 
-  lab = c("CAPI", "Ox", "CAPI (adjusted)"), 
+nicetable <- foreach (fit = list(capifit, oxfit, adjfit, adjoxfit), 
+  lab = c("CAPI", "Ox", "CAPI (NO2 & O3 adjusted RRs)", 
+    "CAPI (Ox adjusted RRs)"), 
   .combine = rbind) %do% 
 {
   

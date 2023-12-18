@@ -45,7 +45,7 @@ summary(oxfit)
 drop1(oxfit, test = "Chisq")
 
 #----------------------------
-# Sensitivity analysis: with adjusted RRs
+# Sensitivity analysis 1: with adjusted RRs
 #----------------------------
 
 # Run model
@@ -56,3 +56,16 @@ summary(adjfit)
 
 # Likelihood ratio tests
 drop1(adjfit, test = "Chisq")
+
+#----------------------------
+# Sensitivity analysis 1: with adjusted RRs by Ox
+#----------------------------
+
+# Run model
+adjoxfit <- mixmeta(coefox ~ PM2.5_toxicity + pcs, 
+  S = vox, random = ~ 1|country/city, data = cities, method = "ml", 
+  subset = convox & !is.na(ox))
+summary(adjoxfit)
+
+# Likelihood ratio tests
+drop1(adjoxfit, test = "Chisq")

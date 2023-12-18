@@ -44,7 +44,8 @@ stage1res <- foreach(dat = dlist, city = iter(cities, by = "row"),
   
   #----- Adjustment for O3 and NO2
   
-  if (!is.na(city$o3_mcc) & !is.na(city$no2_mcc)){
+  if (!is.na(city$ox)){
+    
     # Crossbasis for O3
     cbo3 <- crossbasis(dat$o3, lag = 1, argvar = list(fun = "lin"), 
       arglag = list(fun = "strata")) 
@@ -67,10 +68,33 @@ stage1res <- foreach(dat = dlist, city = iter(cities, by = "row"),
     convadj <- F
   }
 
+  #----- Adjustment for Ox
+  
+  if (!is.na(city$ox)){
+    
+    # Crossbasis for Ox
+    cbox <- crossbasis(dat$ox, lag = 1, argvar = list(fun = "lin"), 
+      arglag = list(fun = "strata")) 
+
+    # Estimate model
+    modelox <- glm(death ~ cbp + cbox + cbt + dow + 
+        ns(date, df = timedf * length(unique(year))), 
+      data = dat, family = quasipoisson)
+    
+    # Extrac logRR
+    redallox <- crosspred(cbp, modelox, cen = 0, at = 10)
+    convox <- modelox$converged
+    
+  } else {
+    redallox <- list(allfit = NA, allse = NA)
+    convox <- F
+  }
+  
   #----- Return results
-  data.frame(city = city$city, coef = redall$allfit, v = redall$allse^2, 
-    conv = model$converged, coefadj = redalladj$allfit, 
-    vadj = redalladj$allse^2, convadj = convadj)
+  data.frame(city = city$city, 
+    coef = redall$allfit, v = redall$allse^2, conv = model$converged, 
+    coefadj = redalladj$allfit, vadj = redalladj$allse^2, convadj = convadj,
+    coefox = redallox$allfit, vox = redallox$allse^2, convox = convox)
 }
   
 
