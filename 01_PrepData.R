@@ -14,7 +14,7 @@
 # Load MCC data
 mccpath <- "V:/VolumeQ/AGteam/MCCdata"
 load(paste0(mccpath, "/air_pollution/MCC air pollution dataset/Processed", 
-  "/MCCdata_Pollution_20230405.RData"))
+  "/MCCdata_Pollution_20240313.RData"))
 
 # Select countries
 cities <- subset(cities, country %in% country_select)
@@ -55,54 +55,82 @@ haspm <- sapply(dlist, function(x)
 cities <- cities[haspm,]
 dlist <- dlist[haspm]
 
+#----- Separate USA and UK in regions
+
+# Load data for regions
+path <- "V:/VolumeQ/AGteam/MCCdata/original/USA211cities/Final_Dataset"
+load(paste(path, "usa7306.RData",sep="/"))
+
+# Match regions to cities
+usaregion <- data.frame(Region=1:9, regionname=paste("USA", c("Central", 
+  "NECentral", "NWCentral", "NorthEast", "NorthWest", "South", "SouthEast",
+  "SouthWest", "West"), sep="-"))
+temp <- merge(citiesusa7306[c("city","Region")], usaregion)
+
+# Replace in meta dataset
+ind <- match(temp$city, cities$city)
+cities[na.omit(ind), "country"] <- cities[na.omit(ind), "countryname"] <- 
+  temp$regionname[!is.na(ind)]
+
+
 #------------------------------------------
 # Load city-level metadata
 #------------------------------------------
 
-#----- CAPI
+#----- CAPI data
 
 # Load data
-capidata <- read.csv("data/MCCpm25_locations_new.csv") |>
+polldata <- read.csv("data/city_pollutants.csv") |>
   na.omit()
 
-#----- Ox data
+# Rename
+polldata <- rename(polldata, PMCI = "PM2.5rel_toxicity_Index")
 
-# Compute average of oxidative pollutants
-oxvars <- foreach(d = dlist, city = cities$city, .combine = rbind) %do% {
-  summarise(d, city = city, o3_mcc = mean(o3, na.rm = T), 
-    no2_mcc = mean(no2, na.rm = T), ox = mean(ox, na.rm = T))
-} 
+# Compute Ox
+polldata <- rowwise(polldata) |> 
+  mutate(Ox = weighted.mean(c(NO2_ppb, Ozone_ppbv), oxw)) |>
+  ungroup()
 
+# Remove country information
+polldata <- subset(polldata, select = -c(country, countryname))
 
-# #----- Compositions
-# 
-# # Load composition dataset
-# flist <- list.files("data", pattern = "SPEC")
-# years <- str_extract(flist, "[[:digit:]]{4}")
-# pmcomp <- foreach(f = flist, y = years, .combine = rbind) %do% {
-#   read.csv(sprintf("data/%s", f)) |> 
-#     mutate(year = y)
-# }
-# 
-# # Impute zero values
-# pmcomp <- mutate(pmcomp, nodat = rowSums(pick(contains("PM25"))) == 0)
-# impcomp <- dplyr::select(pmcomp, contains("PM25")) |> 
-#   multRepl(label = 0, dl = rep(1e-5, 7), z.warning = 1)
-# 
-# # Create compositional data object
-# comp_spec <- acomp(impcomp)
-# 
-# # Rename
-# compnms <- names(comp_spec) |> strsplit("_") |> sapply("[", 2)
-# names(comp_spec) <- compnms
-# 
-# # Average per city
-# citycomp <- aggregate(comp_spec, subset(pmcomp, !nodat, city), mean)
+#----- PM composition data
+
+# Find files
+pathcomp <- paste0(mccpath, "/air_pollution/Composition_data/MCC_PM_SPEC_V2")
+compfiles <- list.files(pathcomp, pattern = "SPEC_10km_buffer")
+compyears <- str_split_i(compfiles, pattern = "[_\\.]", 6)
+
+# Load all files
+pmcomp <- Map(function(f, y) read.csv(paste0(pathcomp, "/", f)) |> mutate(year = y),
+  compfiles, compyears)
+pmcomp <- do.call(rbind, pmcomp)
+
+# Variables
+comp_inds <- grep("PM25", colnames(pmcomp))
+comp_names <- str_split_i(colnames(pmcomp)[comp_inds], "_", 2)
+
+# Loop on cities to compute average composition
+compmeans <- split(pmcomp, ~ city) |> sapply(function(d){
+  
+  # Zeros imputation
+  allzeros <- apply(d[,comp_inds], 1, function(x) all(x == 0))
+  imp_comp <- multRepl(d[!allzeros, comp_inds], label = 0, dl = rep(1e-5, 7),
+    z.warning = 1.1)
+  
+  # Compositional object and mean
+  acomp(imp_comp) |> mean()
+})
+
+# Tidy
+compmeans <- t(compmeans) |> as.data.frame()
+colnames(compmeans) <- comp_names
+compmeans$city <- rownames(compmeans)
 
 #----- Load indicator data
 
 # Load Urban Centre Database
-load(paste0(mccpath, "/data/MCC_Indicators/MCC_indicators_UCD_20231110.RData"))
+load(paste0(mccpath, "/data/MCC_Indicators/MCC_indicators_UCD_20240313.RData"))
 
 # Compute indicators of interest
 ucd.mcc <- ucd.mcc |>
@@ -123,7 +151,7 @@ tsum <- sapply(dlist, function(d) c(mean(d$tmean, na.rm = T),
 #------------------------------------------
 
 # Merge all metadata
-cities <- Reduce(merge, list(cities, capidata, oxvars, ucd.mcc, tsum))
+cities <- Reduce(merge, list(cities, polldata, compmeans, ucd.mcc, tsum))
 
 # Reorder
 cities <- arrange(cities, country, city)

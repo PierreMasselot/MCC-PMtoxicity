@@ -6,8 +6,10 @@
 #####################################################################
 
 #----------------------------
-# Control for city-characteristics: PCA
+# Fit meta-regression model with Toxicity Index
 #----------------------------
+
+#----- PCA on confounders
 
 # Run PCA
 pcares <- prcomp(data.matrix(cities[, confvar]), center = T, scale = T)
@@ -15,57 +17,50 @@ pcares <- prcomp(data.matrix(cities[, confvar]), center = T, scale = T)
 # Extract components
 pcs <- pcares$x[, 1:npc]
 
-#----------------------------
-# Main model: CAPI
-#----------------------------
+#----- Meta-regression model
 
-# Run model
-capifit <- mixmeta(coef ~ PM2.5_toxicity + pcs, 
-  S = v, random = ~ 1|country/city, data = cities, method = "ml", 
-  subset = conv & !is.na(ox))
-summary(capifit)
+# Formula
+pmciform <- update(nullform, ~ . + PMCI)
 
-# Likelihood ratio tests
-drop1(capifit, test = "Chisq")
+# Fit and display summary
+pmcifit <- mixmeta(pmciform, S = v, random = ranform, 
+  data = cities, method = fitmethod, subset = conv)
+summary(pmcifit)
 
 #----------------------------
-# Benchmark: Ox
+# Predict RR
 #----------------------------
 
-# Check Ox availability
-sum(is.na(cities$ox))
+#----- Extract BLUP and residuals
 
-# Fit model
-oxfit <- mixmeta(coef ~ ox + pcs, 
-  S = v, random = ~ 1|country/city, data = cities, 
-  method = "ml", subset = conv & !is.na(ox))
-summary(oxfit)
+# BLUPs
+cities[cities$conv, "blup"] <- exp(blup(pmcifit))
 
-# Likelihood ratio tests
-drop1(oxfit, test = "Chisq")
+# Residuals
+cities[cities$conv, "residuals"] <- residuals(pmcifit)
 
-#----------------------------
-# Sensitivity analysis 1: with adjusted RRs
-#----------------------------
+#----- Predict RR for a grid of PMCI
 
-# Run model
-adjfit <- mixmeta(coefadj ~ PM2.5_toxicity + pcs, 
-  S = vadj, random = ~ 1|country/city, data = cities, method = "ml", 
-  subset = convadj & !is.na(ox))
-summary(adjfit)
+# Create grid of PMCI
+pmcigrid <- with(cities, seq(min(PMCI), max(PMCI), length.out = 100))
+pcmat <- matrix(0, nrow = 100, ncol = 2, dimnames = list(NULL, colnames(pcs)))
+newdata <- data.frame(PMCI = pmcigrid, pcs = I(pcmat))
 
-# Likelihood ratio tests
-drop1(adjfit, test = "Chisq")
+# Predict
+rrpred <- predict(pmcifit, newdata, ci = T) |> 
+  exp() |>
+  as.data.frame()
+newdata <- cbind(newdata, rrpred)
 
-#----------------------------
-# Sensitivity analysis 1: with adjusted RRs by Ox
-#----------------------------
+#----- Predict RR at IQR
 
-# Run model
-adjoxfit <- mixmeta(coefox ~ PM2.5_toxicity + pcs, 
-  S = vox, random = ~ 1|country/city, data = cities, method = "ml", 
-  subset = convox & !is.na(ox))
-summary(adjoxfit)
+# Quantile to predict
+predper <- c(.25, .75)
 
-# Likelihood ratio tests
-drop1(adjoxfit, test = "Chisq")
+# Newdata
+perdata <- data.frame(PMCI = quantile(cities$PMCI, predper), 
+  pcs = I(pcmat[seq_along(predper),]))
+
+# Predict
+predict(pmcifit, perdata, ci = T) |> exp()
+
