@@ -16,7 +16,7 @@ sensform <- update(nullform, coefadj ~ .)
 #----------------------------
 
 # Main model
-senspmciform <- update(sensform, ~ . + PMCI)
+senspmciform <- update(sensform, ~ . + log(I(PMCI + 1)))
 sensres$PMCI <- mixmeta(senspmciform, S = vadj, random = ranform, 
   data = cities, method = fitmethod, subset = convadj)
 

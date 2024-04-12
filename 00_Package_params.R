@@ -13,6 +13,7 @@
 library(dplyr)
 library(tibble)
 library(stringr)
+library(giscoR)
 
 #----- Analysis
 library(tsModel)
@@ -29,6 +30,8 @@ library(knitr)
 library(ggplot2)
 library(flextable)
 library(scico)
+library(patchwork)
+library(sf)
 
 #--------------------------
 # Parameters

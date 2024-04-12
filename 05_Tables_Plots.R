@@ -135,6 +135,8 @@ restab <- foreach(rer = rers, ci = rercis, p = pvalues, q = Qs, i2 = i2s,
 restab <- mutate(restab, across(all_of(c("q", "i2", "lrt", "aic")), 
   as.numeric))
 
+# Change some text
+restab[restab$model == "Main", "var"] <- "PMCI"
 
 #----- Output into a word file
 resft <- flextable(restab[, 
@@ -148,7 +150,7 @@ resft <- flextable(restab[,
   bold(~ lrt == min(lrt, na.rm = T), "lrt") |>
   bold(~ aic == min(aic), "aic") |>
   # Format columns
-  colformat_double(j = c("q", "i2", "aic"), digits = 0, big.mark = "") |>
+  colformat_double(j = c("q", "i2", "aic"), digits = 2, big.mark = "") |>
   colformat_double(j = c("lrt"), digits = 4, na_str = "-") |>
   align(j = "var", align = "right") |>
   # Relabel header
@@ -169,19 +171,23 @@ save_as_docx(resft, path = "figures/Tab2_modelComparison.docx")
 cntrpaldf <- subset(cities, conv) |>
   summarise(lon = mean(long), .by = country) |>
   left_join(unique(cities[, c("country", "countryname")])) |>
-  arrange(lon) |>
+  mutate(isUSA = grepl("^USA", country)) |>
+  group_by(isUSA) |>
+  arrange(isUSA, lon) |>
   mutate(pal = scico(n(), palette = "batlow"))
 cntrpal <- cntrpaldf$pal; names(cntrpal) <- cntrpaldf$countryname
 
 # Shape palette
-shppal <- c(Canada = 16, UK = 17, Portugal = 10, Norway = 11,
-  Sweden = 15, Greece = 14, Romania = 18, China = 13)
-usashp <- rep(12, length(grep("USA", cntrsum$countryname)))
-names(usashp) <- grep("USA", cntrsum$countryname, value = T)
+# shppal <- c(Canada = 16, UK = 17, Portugal = 10, Norway = 11,
+#   Sweden = 15, Greece = 14, Romania = 18, China = 13)
+shppal <- rep_len(15:18, sum(!cntrpaldf$isUSA))
+names(shppal) <- subset(cntrpaldf, !isUSA, countryname, drop = T)
+usashp <- rep_len(11:12, length(grep("^USA", cntrsum$countryname)))
+names(usashp) <- subset(cntrpaldf, isUSA, countryname, drop = T)
 shppal <- c(shppal, usashp)
 
 # Plot association
-rrplot <- ggplot(newdata) + theme_bw() + 
+rrplot <- ggplot(curvedata) + theme_bw() + 
   # geom_ribbon(aes(x = PMCI, ymin = ci.lb, ymax = ci.ub), alpha = .05) + 
   geom_line(aes(x = PMCI, y = fit), linewidth = 1) + 
   geom_line(aes(x = PMCI, y = ci.lb), linetype = 2) + 
