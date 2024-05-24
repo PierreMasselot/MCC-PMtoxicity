@@ -83,7 +83,4 @@ stage1res <- foreach(dat = dlist, city = iter(cities, by = "row"),
 stopCluster(cl)
 
 # Add to cities object
-cities <- merge(cities, stage1res)
-
-# Save intermediate results
-save.image("temp/fs_res.RData")
+cities <- merge(cities, stage1res, sort = F)

@@ -13,9 +13,9 @@
 
 # Compute summaries of pollutants
 cntrsum <- subset(cities, conv) |>
-  summarise(ncities = n(), PM25 = mean(PM2.5_ug_m3), 
-    PM25q1 = quantile(PM2.5_ug_m3, .25), PM25q3 = quantile(PM2.5_ug_m3, .75),
-    pmci = mean(PMCI), pmciq1 = quantile(PMCI, .25), 
+  summarise(ncities = n(), PM25m = mean(PM25), 
+    PM25q1 = quantile(PM25, .25), PM25q3 = quantile(PM25, .75),
+    pmcim = mean(PMCI), pmciq1 = quantile(PMCI, .25), 
     pmciq3 = quantile(PMCI, .75),
     deaths = sum(deaths), 
     periodmin = min(periodmin), periodmax = max(periodmax),
@@ -24,9 +24,9 @@ cntrsum <- subset(cities, conv) |>
 
 # Add total
 totsum <- subset(cities, conv) |>
-  summarise(ncities = n(), PM25 = mean(PM2.5_ug_m3), 
-    PM25q1 = quantile(PM2.5_ug_m3, .25), PM25q3 = quantile(PM2.5_ug_m3, .75),
-    pmci = mean(PMCI),
+  summarise(ncities = n(), PM25m = mean(PM25), 
+    PM25q1 = quantile(PM25, .25), PM25q3 = quantile(PM25, .75),
+    pmcim = mean(PMCI),
     pmciq1 = quantile(PMCI, .25), 
     pmciq3 = quantile(PMCI, .75),
     deaths = sum(deaths), 
@@ -40,8 +40,8 @@ cntrsum$countryname[is.na(cntrsum$countryname)] <- "Total"
 
 # Create pretty column
 cntrsum <- mutate(cntrsum, 
-    PM25 = sprintf("%.2f (%.2f - %.2f)", PM25, PM25q1, PM25q3),
-    PMCI = sprintf("%.2f (%.2f - %.2f)", pmci, pmciq1, pmciq3),
+    PM25 = sprintf("%.2f (%.2f - %.2f)", PM25m, PM25q1, PM25q3),
+    PMCI = sprintf("%.2f (%.2f - %.2f)", pmcim, pmciq1, pmciq3),
     period = sprintf("%i - %i", periodmin, periodmax)) |>
   subset(select = c(countryname, ncities, period, deaths, PM25, PMCI))
 
@@ -53,8 +53,16 @@ sumtab <- flextable(cntrsum) |>
   compose(part = "header", j = 5, 
     value = as_paragraph("Average PM", as_sub("2.5"), " (IQR)")) |>
   bold(i = nrow(cntrsum)) |>
-  autofit()
+  autofit() |> width(j = 2, width = .75) |> width(j = 4, width = 1)
 save_as_docx(sumtab, path = "figures/Tab1_countryDesc.docx")
+
+#----- Additional results
+
+# Percentage locations with average below 10ug/m3
+subset(cities, conv) |> summarise(mean(PM25 < 10) * 100)
+
+# Percentage locations with positive PMCI
+subset(cities, conv) |> summarise(mean(PMCI > 0) * 100)
 
 #-----------------------
 # Table 2: Model result and comparison
@@ -103,23 +111,27 @@ pvalues <- Map(function(co, s) 2 * (1 - pnorm(abs(co / s))),
 #----- Extract model criteria
 
 # Extract Cochran's Q and I2
-Qs <- sapply(stage2res, function(x) summary(x)$qstat$Q)
-i2s <- sapply(stage2res, function(x) summary(x)$i2stat)
+# Qs <- sapply(stage2res, function(x) summary(x)$qstat$Q)
+# i2s <- sapply(stage2res, function(x) summary(x)$i2stat)
 
 # Extract LRT p-value
 lrts <- sapply(stage2res, function(x) lrt.mixmeta(x, stage2res$Null)$pvalue)
+lrts["Null"] <- NA
 
-# Extract AICs
+# Extract information criterions
 aics <- sapply(stage2res, AIC)
+aiccs <- sapply(stage2res, AICc)
+bics <- sapply(stage2res, BIC)
 
 #----- Create final table
 
 # Labels
-modlabs <- c("Main", "Null", "Ox", "PM Composition")
+modlabs <- c("Main", "Null", expression(O[x]), 
+  expression(PM[2.5] ~ "Composition"))
 
 # Bind all results into table
-restab <- foreach(rer = rers, ci = rercis, p = pvalues, q = Qs, i2 = i2s, 
-  lrt = lrts, aic = aics, lab = modlabs, .combine = bind_rows) %do% 
+restab <- foreach(rer = rers, ci = rercis, p = pvalues, bic = bics, 
+  lrt = lrts, aic = aiccs, lab = names(stage2res), .combine = bind_rows) %do% 
 {
   # RER string
   rerstr <- if (nrow(ci) > 0) sprintf("%.4f (%.4f - %.4f)", 
@@ -127,40 +139,63 @@ restab <- foreach(rer = rers, ci = rercis, p = pvalues, q = Qs, i2 = i2s,
   
   # Create table
   out <- cbind(model = lab, var = names(rer), rer = rerstr, 
-    q = q, i2 = i2, lrt = lrt, aic = aic) |> as.data.frame()
-  
+    # q = q, i2 = i2, 
+    lrt = lrt, aic = aic, bic = bic) |> as.data.frame()
 }
 
 # Column type
-restab <- mutate(restab, across(all_of(c("q", "i2", "lrt", "aic")), 
+restab <- mutate(restab, across(all_of(c("lrt", "aic", "bic")), 
   as.numeric))
 
-# Change some text
-restab[restab$model == "Main", "var"] <- "PMCI"
+# Posterior probabilities from the BIC
+deltabic <- exp(-(restab$bic - min(restab$bic)) / 2)
+formatC(deltabic / sum(deltabic), format = "f")
 
 #----- Output into a word file
+
+# Labels
+modlabs <- list(Ox = as_paragraph("O", as_sub("x")),
+  PM_Composition = as_paragraph("PM", as_sub("2.5"), " Composition"),
+  PMCI = as_paragraph("Main"))
+varlabs <- list(Ox = as_paragraph("O", as_sub("x")),
+  SO4 = as_paragraph("SO", as_sub("4"), as_sup("2-")),
+  NH4 = as_paragraph("NH", as_sub("4"), as_sup("+")),
+  NIT = as_paragraph("NO", as_sub("3"), as_sup("-")),
+  `log(I(PMCI + 1))` = as_paragraph("PMCI")
+)
+
+# Create flextable
 resft <- flextable(restab[, 
-    c("model", "var", "rer", "q", "i2", "lrt", "aic")]) |>
+    c("model", "var", "rer", "lrt", "aic", "bic")]) |>
   # Merge identical rows
-  merge_v(j = c("model", "q", "i2", "lrt", "aic")) |>
-  valign(j = c("model", "q", "i2", "lrt", "aic"), valign = "top") |>
+  merge_v(j = c("model", "lrt", "aic", "bic")) |>
+  valign(j = c("model", "lrt", "aic", "bic"), valign = "top") |>
   # Put the best value in bold
-  bold(~ q == min(q), "q") |> 
-  bold(~ i2 == min(i2), "i2") |>
+  # bold(~ q == min(q), "q") |> 
+  # bold(~ i2 == min(i2), "i2") |>
   bold(~ lrt == min(lrt, na.rm = T), "lrt") |>
   bold(~ aic == min(aic), "aic") |>
+  bold(~ bic == min(bic), "bic") |>
   # Format columns
-  colformat_double(j = c("q", "i2", "aic"), digits = 2, big.mark = "") |>
+  colformat_double(j = c("aic", "bic"), digits = 2, big.mark = "") |>
   colformat_double(j = c("lrt"), digits = 4, na_str = "-") |>
-  align(j = "var", align = "right") |>
-  # Relabel header
-  set_header_labels(model = "Model", var = "", q = "Cochran's Q", 
-    lrt = "LRT P-value", aic = "AIC", rer = "RER (95% CI)") |>
-  compose(part = "header", j = "i2", value = as_paragraph("I", as_sup("2"))) |>
+  align(j = "var", align = "right")
+
+# Change some labels
+for (m in seq_along(modlabs)) resft <- compose(resft, 
+  j = "model", i = ~ model == names(modlabs)[m], value = modlabs[[m]])
+for (v in seq_along(varlabs)) resft <- compose(resft, 
+  j = "var", i = ~ var == names(varlabs)[v], value = varlabs[[v]])
+
+
+resft <- resft |>
+  # Relabel
+  set_header_labels(model = "Model", var = "", #q = "Cochran's Q", 
+    lrt = "LRT P-value", aic = "AIC", bic = "BIC", rer = "RER (95% CI)") |>
   # Border
   fix_border_issues() |>
   # Resize
-  autofit()
+  autofit() |> fit_to_width(20, unit = "cm")
 save_as_docx(resft, path = "figures/Tab2_modelComparison.docx")
 
 #-----------------------
@@ -201,4 +236,30 @@ rrplot <- ggplot(curvedata) + theme_bw() +
   labs(x = "PMCI", y = "RR")
 
 # Save
-ggsave("figures/Fig1_RRpred.pdf", rrplot, height = 5)
+ggsave("figures/Fig1_RRpred.pdf", rrplot, height = 5, width = 8)
+
+
+
+#--------------------------------
+# Just for northern america
+# 
+# subset(cities, Region == "Northern America") |>
+#   ggplot() + theme_bw() + 
+#   geom_point(aes(x = PMCI, y = blup, col = countryname, shape = countryname)) + 
+#   geom_hline(yintercept = 1) + 
+#   scale_color_manual(values = cntrpal, breaks = names(cntrpal), 
+#     name = "Country") + 
+#   scale_shape_manual(values = shppal, breaks = names(cntrpal), name = "Country") + 
+#   labs(x = "PMCI", y = "RR (BLUP)")
+# ggsave("temp/NA_RRBLUP.pdf")
+# 
+# 
+# subset(cities, Region == "Northern America") |>
+#   ggplot() + theme_bw() + 
+#   geom_point(aes(x = PMCI, y = exp(coef), col = countryname, shape = countryname)) + 
+#   geom_hline(yintercept = 1) + 
+#   scale_color_manual(values = cntrpal, breaks = names(cntrpal), 
+#     name = "Country") + 
+#   scale_shape_manual(values = shppal, breaks = names(cntrpal), name = "Country") + 
+#   labs(x = "PMCI", y = "RR (1st stage)")
+# ggsave("temp/NA_RR1st.pdf")

@@ -24,6 +24,7 @@ library(doSNOW)
 library(splines)
 library(compositions)
 library(zCompositions)
+library(MuMIn) # For AICc
 
 #----- Output
 library(knitr)
@@ -65,7 +66,7 @@ arglagp <- list(fun = "strata") # Equivalent to MA
 argvarp <- list(fun = "lin")
 
 # Number of df per year
-timedf <- 7
+timedf <- 6
 
 #----- Second stage analysis
 
@@ -78,14 +79,14 @@ fitmethod <- "ml"
 
 # List of city-specific confounders
 confvar <- c("GDPpc00", "GDPpc15", "E_GR_AV00", "E_GR_AV14", "B00", 
-  "B15", "tmean", "trange", "PM2.5_ug_m3")
+  "B15", "tmean", "trange", "PM25")
 nconf <- length(confvar)
 
 # Number of PCs
 npc <- 2
 
 # Ox weights
-oxw <- c(no2 = 1.07, o3 = 2.075)
+# oxw <- c(no2 = 1.07, o3 = 2.075)
 
 # Function to perform Wald test
 fwald <- function(full, null) {

@@ -86,16 +86,15 @@ senslrts <- sapply(sensres, function(x) lrt.mixmeta(x, sensres$Null)$pvalue)
 
 # Extract AICs
 sensaics <- sapply(sensres, AIC)
+sensaiccs <- sapply(sensres, AICc)
+sensbics <- sapply(sensres, BIC)
 
 #----- Create final table
 
-# Labels
-modlabs <- c("Main", "Null", "Ox", "PM Composition")
-
 # Bind all results into table
 sensrestab <- foreach(rer = sensrers, ci = sensrercis, p = senspvalues, 
-  q = sensQs, i2 = sensi2s, lrt = senslrts, aic = sensaics, lab = modlabs, 
-  .combine = bind_rows) %do% 
+  q = sensQs, i2 = sensi2s, lrt = senslrts, aic = sensaiccs, bic = sensbics, 
+  lab = names(sensres), .combine = bind_rows) %do% 
 {
   # RER string
   rerstr <- if (nrow(ci) > 0) sprintf("%.4f (%.4f - %.4f)", 
@@ -103,37 +102,121 @@ sensrestab <- foreach(rer = sensrers, ci = sensrercis, p = senspvalues,
   
   # Create table
   out <- cbind(model = lab, var = names(rer), rer = rerstr, 
-    q = q, i2 = i2, lrt = lrt, aic = aic) |> as.data.frame()
+    lrt = lrt, aic = aic, bic = bic) |> as.data.frame()
   
 }
 
 # Column type
-sensrestab <- mutate(sensrestab, across(all_of(c("q", "i2", "lrt", "aic")), 
+sensrestab <- mutate(sensrestab, across(all_of(c("lrt", "aic", "bic")), 
   as.numeric))
 
 
 #----- Output into a word file
 sensft <- flextable(sensrestab[, 
-  c("model", "var", "rer", "q", "i2", "lrt", "aic")]) |>
+    c("model", "var", "rer", "lrt", "aic", "bic")]) |>
   # Merge identical rows
-  merge_v(j = c("model", "q", "i2", "lrt", "aic")) |>
-  valign(j = c("model", "q", "i2", "lrt", "aic"), valign = "top") |>
+  merge_v(j = c("model", "lrt", "aic", "bic")) |>
+  valign(j = c("model", "lrt", "aic", "bic"), valign = "top") |>
   # Put the best value in bold
-  bold(~ q == min(q), "q") |> 
-  bold(~ i2 == min(i2), "i2") |>
+  # bold(~ q == min(q), "q") |> 
+  # bold(~ i2 == min(i2), "i2") |>
   bold(~ lrt == min(lrt, na.rm = T), "lrt") |>
   bold(~ aic == min(aic), "aic") |>
+  bold(~ bic == min(bic), "bic") |>
   # Format columns
-  colformat_double(j = c("q", "i2", "aic"), digits = 0, big.mark = "") |>
+  colformat_double(j = c("aic", "bic"), digits = 2, big.mark = "") |>
   colformat_double(j = c("lrt"), digits = 4, na_str = "-") |>
-  align(j = "var", align = "right") |>
-  # Relabel header
-  set_header_labels(model = "Model", var = "", q = "Cochran's Q", 
-    lrt = "LRT P-value", aic = "AIC", rer = "RER (95% CI)") |>
-  compose(part = "header", j = "i2", value = as_paragraph("I", as_sup("2"))) |>
+  align(j = "var", align = "right")
+
+# Change some labels
+for (m in seq_along(modlabs)) sensft <- compose(sensft, 
+  j = "model", i = ~ model == names(modlabs)[m], value = modlabs[[m]])
+for (v in seq_along(varlabs)) sensft <- compose(sensft, 
+  j = "var", i = ~ var == names(varlabs)[v], value = varlabs[[v]])
+
+
+sensft <- sensft |>
+  # Relabel
+  set_header_labels(model = "Model", var = "", #q = "Cochran's Q", 
+    lrt = "LRT P-value", aic = "AIC", bic = "BIC", rer = "RER (95% CI)") |>
   # Border
   fix_border_issues() |>
   # Resize
-  autofit()
-save_as_docx(sensft, path = "figures/SupTab1_sensitivityAnalysis.docx")
+  autofit() |> fit_to_width(20, unit = "cm")
+save_as_docx(sensft, path = "figures/SupTab6_sensitivityAnalysis.docx")
 
+#----------------------------
+# Comparison of RRs
+#----------------------------
+
+# List of featured countries
+redcntr <- subset(cities, !is.na(coefadj), countryname, drop = T) |> unique()
+senspal <- cntrpal[names(cntrpal) %in% redcntr]
+sensshp <- shppal[names(shppal) %in% redcntr]
+
+# Number of lower RRs
+summarise(cities, lower = mean(coefadj < coef, na.rm = T), 
+  meandiff = mean(exp(coef) - exp(coefadj), na.rm = T))
+mutate(cities, diff = abs(exp(coef) - exp(coefadj))) |>
+  arrange(desc(diff)) |>
+  head()
+
+# Plot
+rrcompplot <- ggplot(cities) + theme_bw() + 
+  geom_point(aes(x = exp(coef), y = exp(coefadj), 
+    col = countryname, shape = countryname)) + 
+  geom_hline(yintercept = 1) + 
+  geom_vline(xintercept = 1) + 
+  geom_abline(intercept = 0, slope = 1) +
+  scale_color_manual(values = senspal, breaks = names(senspal), 
+    name = "Country", drop = T) + 
+  scale_shape_manual(values = sensshp, breaks = names(senspal), 
+    name = "Country", drop = T) + 
+  labs(x = "RR (main)", y = "RR (adjusted)")
+ggsave("figures/SupFig4_RRadj.png", rrcompplot, height = 5, width = 8)
+
+#----------------------------
+# Description of NO2 and O3 data
+#----------------------------
+
+#----- Summary by country
+
+# Compute summaries of pollutants
+senscntrsum <- subset(cities, convadj) |>
+  summarise(ncities = n(), no2m = mean(NO2_ppbv), 
+    no2q1 = quantile(NO2_ppbv, .25), no2q3 = quantile(NO2_ppbv, .75),
+    o3m = mean(Ozone), o3q1 = quantile(Ozone, .25), 
+    o3q3 = quantile(Ozone, .75),
+    .by = countryname) |>
+  arrange(countryname)
+
+# Add total
+senstotsum <- subset(cities, convadj) |>
+  summarise(ncities = n(), no2m = mean(NO2_ppbv), 
+    no2q1 = quantile(NO2_ppbv, .25), no2q3 = quantile(NO2_ppbv, .75),
+    o3m = mean(Ozone), o3q1 = quantile(Ozone, .25), 
+    o3q3 = quantile(Ozone, .75))
+senscntrsum <- bind_rows(senscntrsum, senstotsum)
+
+# Add name
+senscntrsum <- merge(senscntrsum, 
+  subset(countries, select = c(country, countryname)),
+  all.x = T)
+senscntrsum$countryname[is.na(senscntrsum$countryname)] <- "Total"
+
+# Create pretty column
+senscntrsum <- mutate(senscntrsum, 
+  NO2 = sprintf("%.2f (%.2f - %.2f)", no2m, no2q1, no2q3),
+  O3 = sprintf("%.2f (%.2f - %.2f)", o3m, o3q1, o3q3)) |>
+  subset(select = c(countryname, ncities, NO2, O3))
+
+#----- Create and export word table
+senssumtab <- flextable(senscntrsum) |>
+  set_header_labels(countryname = "Country", ncities = "Number of cities") |>
+  compose(part = "header", j = "NO2", 
+    value = as_paragraph("Average NO", as_sub("2"), " in ppbv (IQR)")) |>
+  compose(part = "header", j = "O3", 
+    value = as_paragraph("Average O", as_sub("3"), " in ppbv (IQR)")) |>
+  bold(i = nrow(senscntrsum)) |>
+  autofit() |> width(j = 2, width = .75)
+save_as_docx(senssumtab, path = "figures/SupTab1_NO2O3_countryDesc.docx")

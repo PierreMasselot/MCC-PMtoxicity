@@ -12,8 +12,7 @@
 #----- World maps
 
 # Variables to plot
-pmcivars <- c("PMCI", "PM2.5_ug_m3", "NO2_ppb", "Ozone_ppbv", "SO2_du", 
-  "HCHO_molecules_cm2", "CO_ppbv", "NH3_ppbv")
+pmcivars <- c("PMCI", "PM25", "NO2_ppbv", "Ozone", "SO2", "HCHO", "CO", "NH3")
 varlabs <- c("PMCI", expression(PM[2.5] ~ "(" * mu * "g/m"^{3} * ")"),
   expression(NO[2] ~ "(ppb)"), "Ozone (ppbv)", SO[2] ~ "(du)", 
   expression("HCHO (mol / cm"^{2} * ")"), "CO (ppbv)", 
@@ -66,7 +65,7 @@ modtests <- lapply(modforms, function(f) mixmeta(f, S = v, random = ranform,
 modres <- foreach(mod = modtests, lab = names(modterms), 
   .combine = rbind) %do% 
 {
-  cbind(data.frame(Model = lab, AIC = AIC(mod), BIC = BIC(mod)), 
+  cbind(data.frame(Model = lab, AIC = AICc(mod), BIC = BIC(mod)), 
     sqrt(t(unlist(mod$Psi))))
 }
 
@@ -79,7 +78,7 @@ comparft <- flextable(modres) |>
   colformat_double(j = c("BIC", "AIC"), digits = 2, big.mark = "") |>
   colformat_double(j = c(4, 5), digits = 6) |>
   autofit()
-save_as_docx(comparft, path = "figures/SupTab2_modelComparison.docx")
+save_as_docx(comparft, path = "figures/SupTab3_modelComparison.docx")
   
 # Display posterior probabilities from BIC
 deltabic <- exp(-(modres$BIC - min(modres$BIC)) / 2)
@@ -122,6 +121,90 @@ dev.print(png, filename = "figures/SupFig2_ComparisonCurve.png", units = "in",
 # 
 # dev.print(png, filename = "figures/SupFig3_ComparisonResid.png", units = "in",
 #   res = 300)
+
+#----------------------------
+# Additional results
+#----------------------------
+
+# Extract supplementary results
+supres <- foreach(mod = stage2res, .combine = rbind) %do% {
+  data.frame(Q = summary(mod)$qstat$Q, i2 = summary(mod)$i2stat,
+    lapply(mod$Psi, sqrt))
+}
+names(supres)[3:4] <- c("country", "city")
+supres$mod <- names(stage2res)
+
+# Export
+supft <- flextable(supres[, c("mod", "Q", "i2", "country", "city")]) |>
+  colformat_double(j = c("Q", "i2"), digits = 2, big.mark = "") |>
+  colformat_double(j = c("country", "city"), digits = 4, big.mark = "") |>
+  align(j = "mod", align = "right") |>
+  compose(j = "i2", value = as_paragraph("I", as_sup("2")), part = "header")
+for (m in seq_along(modlabs)) supft <- compose(supft, 
+  j = "mod", i = ~ mod == names(modlabs)[m], value = modlabs[[m]])
+supft <- set_header_labels(supft, mod = "Model", Q = "Cochran's Q", 
+    country = "Country Std. Dev.", city = "City Std. Dev.") |>
+  autofit()
+save_as_docx(supft, path = "figures/SupTab4_metaCrit.docx")
+
+#----------------------------
+# Single gaseous pollutant models
+#----------------------------
+
+# List of variables
+pollmod <- c("NO2_ppbv", "SO2", "Ozone", "HCHO", "CO", "NH3")
+pollabs <- c(expression(NO[2]), expression(SO[2]), expression(O[3]), 
+  "HCHO", "CO", expression(NH[3]))
+
+#----- Fit second-stage models and extract results
+
+res_single <- foreach(poll = pollmod, .combine = rbind) %do% 
+{
+  
+  # Update formula
+  pform <- update(nullform, sprintf("~ . + %s", poll))
+  
+  # Fit model
+  pmod <- mixmeta(pform, S = v, random = ranform, 
+    data = cities, method = fitmethod, subset = conv)
+  
+  # Extract coefficient associated with pollutant
+  pcoef <- coef(pmod)[poll]
+  pse <- sqrt(vcov(pmod)[poll, poll])
+  
+  # Compute RER for IQR increase
+  iqr <- IQR(model.matrix(pmod)[, poll])
+  prer <- exp(pcoef * iqr)
+  pci <- exp((pcoef + c(-1.96, 1.96) * pse) * iqr)
+  
+  # Extract AIC and LRT p-value
+  plrt <- lrt.mixmeta(pmod, stage2res$Null)$pvalue
+  paic <- AICc(pmod)
+  pbic <- BIC(pmod)
+  
+  # Output
+  data.frame(model = poll, 
+    rer = sprintf("%.4f (%.4f - %.4f)", prer, pci[1], pci[2]),
+    lrt = plrt, aic = paic, bic = pbic)
+}
+
+# Add null and main models for comparison
+res_single <- rbind(subset(restab, model %in% c("PMCI", "Main"), -var), 
+  res_single)
+
+#----- Export as table
+pollft <- flextable(res_single) |>
+  # Format columns
+  colformat_double(j = c("aic"), digits = 2, big.mark = "") |>
+  colformat_double(j = c("lrt"), digits = 4, na_str = "-") |>
+  # Relabel header
+  set_header_labels(model = "Model", lrt = "LRT P-value", aic = "AIC", 
+    rer = "RER (95% CI)") |>
+  # Border
+  fix_border_issues() |>
+  # Resize
+  autofit() |> fit_to_width(20, unit = "cm")
+save_as_docx(pollft, path = "figures/SupTab5_singlePoll.docx")
 
 #----------------------------
 # Residuals
@@ -168,8 +251,8 @@ residdeaths <- ggplot(cities) + theme_bw() +
 
 # Plot residuals vs PM2.5 level
 residpm25 <- ggplot(cities) + theme_bw() + 
-  geom_smooth(aes(x = PM2.5_ug_m3, y = mar_resid), method = "gam", col = 1) + 
-  geom_point(aes(x = PM2.5_ug_m3, y = mar_resid, col = countryname, 
+  geom_smooth(aes(x = PM25, y = mar_resid), method = "gam", col = 1) + 
+  geom_point(aes(x = PM25, y = mar_resid, col = countryname, 
     shape = countryname)) + 
   geom_hline(yintercept = 0) +
   scale_color_manual(values = cntrpal, breaks = names(cntrpal), 

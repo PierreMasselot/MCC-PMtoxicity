@@ -41,10 +41,9 @@ dlist <- lapply(dlist, mutate,
   # Compute PM MA
   mapm = runMean(pm25, 0:maxlagp),
   
-  # Convert O3 and NO2 to ppb and compute Ox
-  no2 = if (exists('no2')) no2 / 1.88 else NA,
-  o3 = if (exists('o3')) o3 / 1.96 else NA,
-  ox = (no2 * oxw[1] + o3 * oxw[2]) / sum(oxw)
+  # Check for daily gases
+  no2 = if (exists('no2')) no2 else NA,
+  o3 = if (exists('o3')) o3 else NA
 )
 
 #----- Select data
@@ -55,7 +54,7 @@ haspm <- sapply(dlist, function(x)
 cities <- cities[haspm,]
 dlist <- dlist[haspm]
 
-#----- Separate USA and UK in regions
+#----- Separate USA in regions
 
 # Load data for regions
 path <- "V:/VolumeQ/AGteam/MCCdata/original/USA211cities/Final_Dataset"
@@ -80,19 +79,13 @@ cities[na.omit(ind), "country"] <- cities[na.omit(ind), "countryname"] <-
 #----- CAPI data
 
 # Load data
-polldata <- read.csv("data/city_pollutants.csv") |>
-  na.omit()
-
-# Rename
-polldata <- rename(polldata, PMCI = "PM2.5rel_toxicity_Index")
+polldata <- read.csv("data/city_pollutants_v2.csv")
 
 # Compute Ox
-polldata <- rowwise(polldata) |> 
-  mutate(Ox = weighted.mean(c(NO2_ppb, Ozone_ppbv), oxw)) |>
-  ungroup()
+polldata <- mutate(polldata, Ox = (NO2_ppbv * 1.07 + Ozone * 2.075) / 3.145)
 
 # Remove country information
-polldata <- subset(polldata, select = -c(country, countryname))
+polldata <- subset(polldata, !is.na(PMCI), select = -c(country, countryname))
 
 #----- PM composition data
 
@@ -102,7 +95,8 @@ compfiles <- list.files(pathcomp, pattern = "SPEC_10km_buffer")
 compyears <- str_split_i(compfiles, pattern = "[_\\.]", 6)
 
 # Load all files
-pmcomp <- Map(function(f, y) read.csv(paste0(pathcomp, "/", f)) |> mutate(year = y),
+pmcomp <- Map(function(f, y) read.csv(paste0(pathcomp, "/", f)) |> 
+    mutate(year = y),
   compfiles, compyears)
 pmcomp <- do.call(rbind, pmcomp)
 
