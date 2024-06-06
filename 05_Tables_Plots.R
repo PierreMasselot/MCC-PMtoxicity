@@ -51,7 +51,7 @@ sumtab <- flextable(cntrsum) |>
     period = "Period", deaths = "Total mortality", 
     PMCI = "Average PMCI (IQR)") |>
   compose(part = "header", j = 5, 
-    value = as_paragraph("Average PM", as_sub("2.5"), " (IQR)")) |>
+    value = as_paragraph("Average PM", as_sub("2.5"), " in µg/m", as_sup("3"), " (IQR)")) |>
   bold(i = nrow(cntrsum)) |>
   autofit() |> width(j = 2, width = .75) |> width(j = 4, width = 1)
 save_as_docx(sumtab, path = "figures/Tab1_countryDesc.docx")

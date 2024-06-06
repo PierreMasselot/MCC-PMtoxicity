@@ -14,7 +14,7 @@
 # Variables to plot
 pmcivars <- c("PMCI", "PM25", "NO2_ppbv", "Ozone", "SO2", "HCHO", "CO", "NH3")
 varlabs <- c("PMCI", expression(PM[2.5] ~ "(" * mu * "g/m"^{3} * ")"),
-  expression(NO[2] ~ "(ppb)"), "Ozone (ppbv)", SO[2] ~ "(du)", 
+  expression(NO[2] ~ "(ppbv)"), "Ozone (ppbv)", SO[2] ~ "(du)", 
   expression("HCHO (mol / cm"^{2} * ")"), "CO (ppbv)", 
   expression(NH[3] ~ "(ppbv)"))
 transvars <- c("identity", "log10", "log10", "identity", "log10", "log10", 
