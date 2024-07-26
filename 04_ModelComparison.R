@@ -34,6 +34,21 @@ subset(cities,
   rank(blup_null, na.last = F) >= (max(rank(blup_null, na.last = F)) - 10), 
   c(cityname, countryname, PMCI, blup_null))
 
+
+#----- Model with gaseous pollutants
+
+# List of variables
+gasmod <- c("NO2_ppbv", "SO2", "Ozone", "HCHO", "CO", "NH3")
+
+# Update formula
+gasform <- update(nullform, 
+  sprintf("~ . + %s", paste(gasmod, collapse = " + ")))
+
+# Fit model
+stage2res$gas <- mixmeta(gasform, S = v, random = ranform, 
+  data = cities, method = fitmethod, subset = conv)
+summary(stage2res$gas)
+
 #----- Ox model
 
 # Add Ox to formula

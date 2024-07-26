@@ -64,5 +64,4 @@ perdata <- data.frame(PMCI = quantile(cities$PMCI, predper),
 
 # Predict
 predict(pmcifit, perdata, ci = T) |> exp() |> as.data.frame() |>
-  reframe(pretty = sprintf("%.4f (95%%CI: %.4f - %.4f)", fit, ci.lb, ci.ub))
-
+  reframe(RRres = sprintf("%.4f (95%%CI: %.4f - %.4f)", fit, ci.lb, ci.ub))

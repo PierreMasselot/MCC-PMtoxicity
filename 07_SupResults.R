@@ -148,65 +148,6 @@ supft <- set_header_labels(supft, mod = "Model", Q = "Cochran's Q",
 save_as_docx(supft, path = "figures/SupTab4_metaCrit.docx")
 
 #----------------------------
-# Single gaseous pollutant models
-#----------------------------
-
-# List of variables
-pollmod <- c("NO2_ppbv", "SO2", "Ozone", "HCHO", "CO", "NH3")
-pollabs <- c(expression(NO[2]), expression(SO[2]), expression(O[3]), 
-  "HCHO", "CO", expression(NH[3]))
-
-#----- Fit second-stage models and extract results
-
-res_single <- foreach(poll = pollmod, .combine = rbind) %do% 
-{
-  
-  # Update formula
-  pform <- update(nullform, sprintf("~ . + %s", poll))
-  
-  # Fit model
-  pmod <- mixmeta(pform, S = v, random = ranform, 
-    data = cities, method = fitmethod, subset = conv)
-  
-  # Extract coefficient associated with pollutant
-  pcoef <- coef(pmod)[poll]
-  pse <- sqrt(vcov(pmod)[poll, poll])
-  
-  # Compute RER for IQR increase
-  iqr <- IQR(model.matrix(pmod)[, poll])
-  prer <- exp(pcoef * iqr)
-  pci <- exp((pcoef + c(-1.96, 1.96) * pse) * iqr)
-  
-  # Extract AIC and LRT p-value
-  plrt <- lrt.mixmeta(pmod, stage2res$Null)$pvalue
-  paic <- AICc(pmod)
-  pbic <- BIC(pmod)
-  
-  # Output
-  data.frame(model = poll, 
-    rer = sprintf("%.4f (%.4f - %.4f)", prer, pci[1], pci[2]),
-    lrt = plrt, aic = paic, bic = pbic)
-}
-
-# Add null and main models for comparison
-res_single <- rbind(subset(restab, model %in% c("PMCI", "Main"), -var), 
-  res_single)
-
-#----- Export as table
-pollft <- flextable(res_single) |>
-  # Format columns
-  colformat_double(j = c("aic"), digits = 2, big.mark = "") |>
-  colformat_double(j = c("lrt"), digits = 4, na_str = "-") |>
-  # Relabel header
-  set_header_labels(model = "Model", lrt = "LRT P-value", aic = "AIC", 
-    rer = "RER (95% CI)") |>
-  # Border
-  fix_border_issues() |>
-  # Resize
-  autofit() |> fit_to_width(20, unit = "cm")
-save_as_docx(pollft, path = "figures/SupTab5_singlePoll.docx")
-
-#----------------------------
 # Residuals
 #----------------------------
 

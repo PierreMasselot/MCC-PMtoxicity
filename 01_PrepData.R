@@ -79,10 +79,10 @@ cities[na.omit(ind), "country"] <- cities[na.omit(ind), "countryname"] <-
 #----- CAPI data
 
 # Load data
-polldata <- read.csv("data/city_pollutants_v2.csv")
+capiread <- read.csv("data/city_pollutants_v2.csv")
 
 # Compute Ox
-polldata <- mutate(polldata, Ox = (NO2_ppbv * 1.07 + Ozone * 2.075) / 3.145)
+polldata <- mutate(capiread, Ox = (NO2_ppbv * 1.07 + Ozone * 2.075) / 3.145)
 
 # Remove country information
 polldata <- subset(polldata, !is.na(PMCI), select = -c(country, countryname))

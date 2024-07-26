@@ -24,6 +24,12 @@ sensres$PMCI <- mixmeta(senspmciform, S = vadj, random = ranform,
 sensres$Null <- mixmeta(sensform, S = vadj, random = ranform, 
   data = cities, method = fitmethod, subset = convadj)
 
+# Gas mixture model
+sensgasform <- update(sensform, 
+  sprintf("~ . + %s", paste(gasmod, collapse = " + ")))
+sensres$gas <- mixmeta(sensgasform, S = vadj, random = ranform, 
+  data = cities, method = fitmethod, subset = convadj)
+
 # Ox model
 sensoxform <- update(sensform, ~ . + Ox)
 sensres$Ox <- mixmeta(sensoxform, S = vadj, random = ranform, 
@@ -134,6 +140,10 @@ for (m in seq_along(modlabs)) sensft <- compose(sensft,
 for (v in seq_along(varlabs)) sensft <- compose(sensft, 
   j = "var", i = ~ var == names(varlabs)[v], value = varlabs[[v]])
 
+# Add some horizontal borders
+for (m in unique(restab$model)) sensft <- hline(sensft, 
+  i = max(which(restab$model == m)),
+  border = officer::fp_border(style = "dotted"))
 
 sensft <- sensft |>
   # Relabel
@@ -143,7 +153,9 @@ sensft <- sensft |>
   fix_border_issues() |>
   # Resize
   autofit() |> fit_to_width(20, unit = "cm")
-save_as_docx(sensft, path = "figures/SupTab6_sensitivityAnalysis.docx")
+
+# Save
+save_as_docx(sensft, path = "figures/SupTab5_sensitivityAnalysis.docx")
 
 #----------------------------
 # Comparison of RRs

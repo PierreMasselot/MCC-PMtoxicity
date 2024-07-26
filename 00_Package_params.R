@@ -88,17 +88,6 @@ npc <- 2
 # Ox weights
 # oxw <- c(no2 = 1.07, o3 = 2.075)
 
-# Function to perform Wald test
-fwald <- function(full, null) {
-  ind <- !names(coef(full)) %in% names(coef(null))
-  coef <- coef(full)[ind]
-  vcov <- vcov(full)[ind,ind]
-  waldstat <- coef %*% solve(vcov) %*% coef
-  df <- length(coef)
-  pval <- 1 - pchisq(waldstat, df)
-  return(list(waldstat = waldstat, pvalue = pval))
-}
-
 # Function to perform likelihood ratio test
 lrt.mixmeta <- function(full, null) {
   llnull <- logLik(null)

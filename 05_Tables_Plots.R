@@ -53,7 +53,10 @@ sumtab <- flextable(cntrsum) |>
   compose(part = "header", j = 5, 
     value = as_paragraph("Average PM", as_sub("2.5"), " in µg/m", as_sup("3"), " (IQR)")) |>
   bold(i = nrow(cntrsum)) |>
-  autofit() |> width(j = 2, width = .75) |> width(j = 4, width = 1)
+  autofit() |> #width(j = 2, width = .75) |> width(j = 4, width = 1) |>
+  fit_to_width(20, unit = "cm")
+
+# Save
 save_as_docx(sumtab, path = "figures/Tab1_countryDesc.docx")
 
 #----- Additional results
@@ -126,7 +129,7 @@ bics <- sapply(stage2res, BIC)
 #----- Create final table
 
 # Labels
-modlabs <- c("Main", "Null", expression(O[x]), 
+modlabs <- c("Main", "Gas mixture", "Null", expression(O[x]), 
   expression(PM[2.5] ~ "Composition"))
 
 # Bind all results into table
@@ -156,12 +159,16 @@ formatC(deltabic / sum(deltabic), format = "f")
 # Labels
 modlabs <- list(Ox = as_paragraph("O", as_sub("x")),
   PM_Composition = as_paragraph("PM", as_sub("2.5"), " Composition"),
-  PMCI = as_paragraph("Main"))
+  PMCI = as_paragraph("Main"), gas = as_paragraph("Gas Mixture"))
 varlabs <- list(Ox = as_paragraph("O", as_sub("x")),
   SO4 = as_paragraph("SO", as_sub("4"), as_sup("2-")),
   NH4 = as_paragraph("NH", as_sub("4"), as_sup("+")),
   NIT = as_paragraph("NO", as_sub("3"), as_sup("-")),
-  `log(I(PMCI + 1))` = as_paragraph("PMCI")
+  `log(I(PMCI + 1))` = as_paragraph("PMCI"),
+  NO2_ppbv = as_paragraph("NO", as_sub("2")),
+  SO2 = as_paragraph("SO", as_sub("2")),
+  Ozone = as_paragraph("O", as_sub("3")),
+  NH3 = as_paragraph("NH", as_sub("3"))
 )
 
 # Create flextable
@@ -187,6 +194,10 @@ for (m in seq_along(modlabs)) resft <- compose(resft,
 for (v in seq_along(varlabs)) resft <- compose(resft, 
   j = "var", i = ~ var == names(varlabs)[v], value = varlabs[[v]])
 
+# Add some horizontal borders
+for (m in unique(restab$model)) resft <- hline(resft, 
+  i = max(which(restab$model == m)),
+  border = officer::fp_border(style = "dotted"))
 
 resft <- resft |>
   # Relabel
@@ -196,6 +207,7 @@ resft <- resft |>
   fix_border_issues() |>
   # Resize
   autofit() |> fit_to_width(20, unit = "cm")
+
 save_as_docx(resft, path = "figures/Tab2_modelComparison.docx")
 
 #-----------------------
