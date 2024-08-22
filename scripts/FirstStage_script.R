@@ -84,3 +84,6 @@ stopCluster(cl)
 
 # Add to cities object
 cities <- merge(cities, stage1res, sort = F)
+
+# Export data
+write.csv(cities, "data/citydata.csv", quote = F, row.names = F)
