@@ -1,6 +1,6 @@
 # MCC-PMtoxicity
 
-R code and intermediary data performing the analysis from the paper **Air pollution mixture complexity and its effect on PM2.5-related mortality: a multi-country time-series study in 264 cities** published in *Environmental Epidemiology* (--doi--). 
+R code and intermediary data performing the analysis from the paper **Air pollution mixture complexity and its effect on PM2.5-related mortality: a multi-country time-series study in 264 cities** published in *Environmental Epidemiology* (https://doi.org/10.1097/EE9.0000000000000342). 
 
 ## Data
 
